@@ -1,0 +1,46 @@
+name: windows-release
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install Skia
+      shell: bash
+      run: |
+        this_dir=$(cygpath "${{ github.workspace }}")
+        skia_url=$(source $this_dir/laf/misc/skia-url.sh | xargs)
+        skia_file=$(basename $skia_url)
+        curl --ssl-revoke-best-effort -L -o "$skia_file" "$skia_url"
+        unzip -q "$skia_file" -d skia
+    - uses: aseprite/get-ninja@main
+    - uses: TheMrMilchmann/setup-msvc-dev@v4
+      with:
+        arch: x64
+    - name: Configure
+      shell: bash
+      run: |
+        cmake -S . -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DENABLE_TESTS=OFF \
+          -DENABLE_SCRIPTING=ON \
+          -DENABLE_CCACHE=OFF \
+          -DLAF_BACKEND=skia \
+          -DSKIA_DIR=$(realpath skia) \
+          -DSKIA_LIBRARY_DIR=$(realpath skia/out/Release-x64)
+    - name: Build
+      shell: bash
+      run: cmake --build build --target aseprite
+    - name: Smoke test
+      shell: bash
+      run: ./build/bin/aseprite.exe --version
+    - uses: actions/upload-artifact@v4
+      with:
+        name: aseprite-windows-x64
+        path: build/bin/
+        retention-days: 7
