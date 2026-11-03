@@ -36,6 +36,19 @@ jobs:
     - name: Build
       shell: bash
       run: cmake --build build --target aseprite
+    - name: Show DLL dependencies
+      shell: bash
+      run: |
+        dumpbin //dependents build/bin/aseprite.exe || true
+        grep -i -E 'openssl|crypto' build/CMakeCache.txt || true
+    - name: Bundle OpenSSL DLLs if the exe imports them
+      shell: bash
+      run: |
+        if dumpbin //dependents build/bin/aseprite.exe | grep -qi -E 'libcrypto|libssl'; then
+          for d in "/c/Program Files/OpenSSL/bin" "/c/Program Files/OpenSSL-Win64/bin"; do
+            [ -d "$d" ] && cp -v "$d"/libcrypto-3*.dll "$d"/libssl-3*.dll build/bin/ && break
+          done
+        fi
     - name: Smoke test
       shell: bash
       run: ./build/bin/aseprite.exe --version
